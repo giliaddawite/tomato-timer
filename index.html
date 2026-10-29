@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tomato Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one centered kitchen-timer dial (25 ticks, one per minute) with the controls beneath it. No cards. */
+:root {
+  --bg: #EDF1EE;
+  --fg: #14201A;
+  --muted: #55645B;
+  --accent: #D2351F;
+  --on-accent: #FFFFFF;
+  --leaf: #2E7D4F;
+  --tick-off: #C5CEC8;
+  --track: #D9E0DB;
+  --line: #A9B6AE;
+  --focus: #14201A;
+  color-scheme: light;
+  --font-display: 'DM Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1512;
+    --fg: #E7EEE9;
+    --muted: #93A59A;
+    --accent: #FF6B55;
+    --on-accent: #1C0B07;
+    --leaf: #5CC98A;
+    --tick-off: #2A3730;
+    --track: #1E2B25;
+    --line: #435449;
+    --focus: #E7EEE9;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1512;
+  --fg: #E7EEE9;
+  --muted: #93A59A;
+  --accent: #FF6B55;
+  --on-accent: #1C0B07;
+  --leaf: #5CC98A;
+  --tick-off: #2A3730;
+  --track: #1E2B25;
+  --line: #435449;
+  --focus: #E7EEE9;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  box-sizing: border-box;
+  display: flex;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.4;
+  padding-block: 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow-y: auto;
+}
+
+main {
+  margin: auto;
+  width: min(100%, 380px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+
+.top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.top h1 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 600;
+  letter-spacing: inherit;
+  color: var(--fg);
+}
+.sessions { display: flex; align-items: center; gap: 10px; }
+.dots { display: flex; gap: 6px; }
+.dots span {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  box-sizing: border-box;
+}
+.dots span.on { background: var(--leaf); border-color: var(--leaf); }
+
+.dial {
+  container-type: inline-size;
+  position: relative;
+  width: min(100%, 340px);
+  aspect-ratio: 1;
+}
+.dial svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.tick { stroke: var(--tick-off); stroke-width: 3; stroke-linecap: round; }
+.tick.on { stroke: var(--accent); }
+.track { fill: none; stroke: var(--track); stroke-width: 6; }
+.progress { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; }
+
+.readout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.time {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 20cqi;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.status {
+  margin: 0;
+  max-width: 62cqi;
+  text-align: center;
+  font-size: 4.2cqi;
+  line-height: 1.3;
+  color: var(--muted);
+  min-height: 2.6em;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.dial.done .time { color: var(--accent); animation: pulse 1.2s ease-in-out 3; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+.length {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.length label {
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.length input {
+  box-sizing: border-box;
+  width: 5rem;
+  min-height: 44px;
+  padding: 0 8px 0 12px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--fg);
+  background: transparent;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+}
+.length input:hover:not(:disabled) { border-color: var(--fg); }
+.length input:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.length input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.controls { width: 100%; display: flex; gap: 12px; }
+button {
+  font: inherit;
+  font-weight: 600;
+  min-height: 54px;
+  padding: 0 24px;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.08s ease, filter 0.15s ease, background-color 0.15s ease;
+}
+button:active { transform: translateY(1px); }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.primary { flex: 2; background: var(--accent); color: var(--on-accent); }
+.primary:hover { filter: brightness(1.08); }
+.secondary { flex: 1; background: transparent; color: var(--fg); border-color: var(--line); }
+.secondary:hover { border-color: var(--fg); }
+
+.foot {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.keys kbd {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--fg);
+}
+.link {
+  min-height: 0;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link:hover { color: var(--fg); }
+@media (hover: none) { .keys { display: none; } .foot { justify-content: center; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .progress { transition: stroke-dashoffset 0.25s linear; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dial.done .time { animation: none; }
+  button { transition: none; }
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1 id="title">Focus &middot; 25 min</h1>
+    <div class="sessions">
+      <span class="dots" id="dots" aria-hidden="true"></span>
+      <span id="count">0 today</span>
+    </div>
+  </div>
+
+  <div class="dial" id="dial">
+    <svg viewBox="0 0 300 300" aria-hidden="true">
+      <g id="ticks"></g>
+      <circle class="track" cx="150" cy="150" r="112"></circle>
+      <circle class="progress" id="ring" cx="150" cy="150" r="112" transform="rotate(-90 150 150)"></circle>
+    </svg>
+    <div class="readout">
+      <div class="time" id="time" role="timer" aria-label="Time remaining">25:00</div>
+      <p class="status" id="status" aria-live="polite">Ready to focus</p>
+    </div>
+  </div>
+
+  <div class="length">
+    <label for="minutes">Length</label>
+    <input type="number" id="minutes" inputmode="numeric" min="1" max="99" step="1" value="25">
+    <span>min</span>
+  </div>
+
+  <div class="controls">
+    <button type="button" class="primary" id="start">Start</button>
+    <button type="button" class="secondary" id="reset">Reset</button>
+  </div>
+
+  <div class="foot">
+    <span class="keys"><kbd>Space</kbd> start / pause &nbsp; <kbd>R</kbd> reset</span>
+    <button type="button" class="link" id="sound" aria-pressed="true">Sound on</button>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var MIN_MINUTES = 1, MAX_MINUTES = 99;
+  var minutes = 25;
+  var total = minutes * 60 * 1000;
+  var CIRC = 2 * Math.PI * 112;
+  var STORE_KEY = 'tomato-timer-v1';
+
+  var remaining = total;
+  var endAt = 0;
+  var timerId = null;
+  var state = 'idle'; // idle | running | paused | done
+  var soundOn = true;
+  var count = 0;
+  var audioCtx = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var elTime = $('time'), elStatus = $('status'), elStart = $('start'), elReset = $('reset');
+  var elRing = $('ring'), elTicks = $('ticks'), elDial = $('dial');
+  var elDots = $('dots'), elCount = $('count'), elSound = $('sound');
+  var elMinutes = $('minutes'), elTitle = $('title');
+
+  /* ---------- dial ticks: one per minute (up to 60), a longer one every fifth ---------- */
+  var NS = 'http://www.w3.org/2000/svg';
+  var tickEls = [];
+  function buildTicks() {
+    var n = Math.min(minutes, 60);
+    while (elTicks.firstChild) elTicks.removeChild(elTicks.firstChild);
+    tickEls = [];
+    for (var i = 0; i < n; i++) {
+      var a = (i * 360 / n) * Math.PI / 180;
+      var major = n >= 10 ? i % 5 === 0 : i === 0;
+      var r1 = major ? 123 : 129, r2 = 141;
+      var ln = document.createElementNS(NS, 'line');
+      ln.setAttribute('x1', (150 + r1 * Math.sin(a)).toFixed(2));
+      ln.setAttribute('y1', (150 - r1 * Math.cos(a)).toFixed(2));
+      ln.setAttribute('x2', (150 + r2 * Math.sin(a)).toFixed(2));
+      ln.setAttribute('y2', (150 - r2 * Math.cos(a)).toFixed(2));
+      ln.setAttribute('class', 'tick on');
+      elTicks.appendChild(ln);
+      tickEls.push(ln);
+    }
+  }
+  for (var d = 0; d < 4; d++) elDots.appendChild(document.createElement('span'));
+  elRing.style.strokeDasharray = CIRC;
+
+  /* ---------- saved daily count and sound setting (optional, may be unavailable) ---------- */
+  function today() {
+    var n = new Date();
+    return n.getFullYear() + '-' + (n.getMonth() + 1) + '-' + n.getDate();
+  }
+  function load() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+      if (saved.day === today()) count = saved.count || 0;
+      if (saved.sound === false) soundOn = false;
+      var m = parseInt(saved.minutes, 10);
+      if (m >= MIN_MINUTES && m <= MAX_MINUTES) { minutes = m; total = m * 60000; remaining = total; }
+    } catch (e) {}
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({ day: today(), count: count, sound: soundOn, minutes: minutes }));
+    } catch (e) {}
+  }
+
+  /* ---------- sound: a short chime synthesized with Web Audio, no files ---------- */
+  function ensureAudio() {
+    try {
+      if (!audioCtx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) {}
+  }
+  function tone(freq, t, dur, peak) {
+    var o = audioCtx.createOscillator(), o2 = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    o2.type = 'sine'; o2.frequency.value = freq * 2;
+    var g2 = audioCtx.createGain(); g2.gain.value = 0.25;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); o2.connect(g2); g2.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o2.start(t);
+    o.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+  }
+  function chime() {
+    if (!soundOn) return;
+    ensureAudio();
+    if (!audioCtx) return;
+    var t0 = audioCtx.currentTime + 0.05;
+    var notes = [659.25, 880, 1318.51];
+    [0, 1.1].forEach(function (offset) {
+      notes.forEach(function (f, n) { tone(f, t0 + offset + n * 0.22, 0.9, 0.3); });
+    });
+  }
+
+  /* ---------- rendering ---------- */
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fmt(ms) {
+    var s = Math.ceil(ms / 1000);
+    return pad(Math.floor(s / 60)) + ':' + pad(s % 60);
+  }
+  var STATUS = {
+    idle: 'Ready to focus',
+    running: 'Focus time',
+    paused: 'Paused',
+    done: 'Time’s up. Take a short break.'
+  };
+  var START_LABEL = { idle: 'Start', running: 'Pause', paused: 'Resume', done: 'Start again' };
+
+  function render() {
+    var text = fmt(remaining);
+    elTime.textContent = text;
+    document.title = state === 'idle' ? 'Tomato Timer' : text + ' · Tomato Timer';
+    elRing.style.strokeDashoffset = CIRC * (1 - remaining / total);
+    elRing.style.opacity = remaining > 0 ? 1 : 0;
+    var lit = Math.min(tickEls.length, Math.ceil(remaining / total * tickEls.length - 1e-9));
+    for (var i = 0; i < tickEls.length; i++) {
+      tickEls[i].setAttribute('class', i < lit ? 'tick on' : 'tick');
+    }
+    elStatus.textContent = STATUS[state];
+    elTitle.textContent = 'Focus · ' + minutes + ' min';
+    elMinutes.disabled = state === 'running';
+    elStart.textContent = START_LABEL[state];
+    elDial.classList.toggle('done', state === 'done');
+    var filled = count > 0 && count % 4 === 0 ? 4 : count % 4;
+    for (var d = 0; d < elDots.children.length; d++) {
+      elDots.children[d].className = d < filled ? 'on' : '';
+    }
+    elCount.textContent = count + ' today';
+    elSound.textContent = soundOn ? 'Sound on' : 'Sound off';
+    elSound.setAttribute('aria-pressed', String(soundOn));
+  }
+
+  /* ---------- timer: measured against the clock, so background tabs do not drift ---------- */
+  function tick() {
+    remaining = Math.max(0, endAt - Date.now());
+    if (remaining <= 0) finish(); else render();
+  }
+  function start() {
+    ensureAudio(); // a click is needed before browsers allow sound
+    if (state === 'done') remaining = total;
+    endAt = Date.now() + remaining;
+    state = 'running';
+    clearInterval(timerId);
+    timerId = setInterval(tick, 200);
+    render();
+  }
+  function pause() {
+    clearInterval(timerId);
+    remaining = Math.max(0, endAt - Date.now());
+    state = 'paused';
+    render();
+  }
+  function reset() {
+    clearInterval(timerId);
+    remaining = total;
+    state = 'idle';
+    render();
+  }
+  function finish() {
+    clearInterval(timerId);
+    remaining = 0;
+    state = 'done';
+    count += 1;
+    save();
+    render();
+    chime();
+    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+  }
+  function toggle() { if (state === 'running') pause(); else start(); }
+
+  function setMinutes(m) {
+    minutes = m;
+    total = m * 60000;
+    buildTicks();
+    reset();
+    save();
+  }
+  function readMinutes() {
+    var m = Math.round(parseFloat(elMinutes.value));
+    return (m >= MIN_MINUTES && m <= MAX_MINUTES) ? m : null;
+  }
+  elMinutes.addEventListener('input', function () {
+    var m = readMinutes();
+    if (m !== null && m !== minutes) setMinutes(m);
+  });
+  elMinutes.addEventListener('change', function () {
+    var m = readMinutes();
+    if (m === null) {
+      var typed = Math.round(parseFloat(elMinutes.value));
+      m = Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, isNaN(typed) ? minutes : typed));
+    }
+    elMinutes.value = m;
+    if (m !== minutes) setMinutes(m);
+  });
+  elMinutes.addEventListener('keydown', function (e) { if (e.key === 'Enter') elMinutes.blur(); });
+
+  elStart.addEventListener('click', toggle);
+  elReset.addEventListener('click', reset);
+  elSound.addEventListener('click', function () {
+    soundOn = !soundOn;
+    save();
+    render();
+    if (soundOn) {
+      ensureAudio();
+      if (audioCtx) tone(880, audioCtx.currentTime + 0.02, 0.5, 0.2); // short preview
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target && e.target.tagName === 'INPUT') return;
+    var onButton = e.target && e.target.tagName === 'BUTTON';
+    if (e.code === 'Space' && !onButton) { e.preventDefault(); toggle(); }
+    else if (e.key === 'r' || e.key === 'R') { reset(); }
+  });
+
+  load();
+  elMinutes.value = minutes;
+  buildTicks();
+  render();
+})();
+</script>
+</body>
+</html>
